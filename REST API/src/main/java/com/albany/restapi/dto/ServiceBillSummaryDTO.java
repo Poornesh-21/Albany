@@ -12,14 +12,14 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class BillRequestDTO {
+public class ServiceBillSummaryDTO {
+    private Integer requestId;
     private List<MaterialItemDTO> materials;
     private List<LaborChargeDTO> laborCharges;
-    private BigDecimal materialsTotal;
-    private BigDecimal laborTotal;
+    private BigDecimal partsSubtotal;
+    private BigDecimal laborSubtotal;
     private BigDecimal subtotal;
-    private BigDecimal gst;
-    private BigDecimal grandTotal;
+    private BigDecimal tax;
+    private BigDecimal total;
     private String notes;
-    private boolean sendEmail;
 }
