@@ -353,7 +353,8 @@ public class ServiceAdvisorDashboardService {
 
         // Create bill response
         BillResponseDTO response = new BillResponseDTO();
-        response.setBillId(generateBillId()); // Generate unique bill ID
+        String billId = generateBillId(); // Generate unique bill ID as a String
+        response.setBillId(billId);
         response.setRequestId(requestId);
         response.setVehicleName(request.getVehicle().getBrand() + " " + request.getVehicle().getModel());
         response.setRegistrationNumber(request.getVehicle().getRegistrationNumber());
@@ -380,7 +381,7 @@ public class ServiceAdvisorDashboardService {
                         response.getCustomerName(),
                         response.getVehicleName(),
                         response.getRegistrationNumber(),
-                        response.getBillId(),
+                        billId, // Use the String billId
                         response.getGrandTotal(),
                         request.getServiceType()
                 );
@@ -393,7 +394,7 @@ public class ServiceAdvisorDashboardService {
             response.setEmailSent(false);
         }
 
-        // Create a download URL (this would be implemented in a real system)
+        // Create a download URL
         response.setDownloadUrl("/api/bills/" + response.getBillId() + "/download");
 
         // Create service tracking entry for bill generation
@@ -429,7 +430,7 @@ public class ServiceAdvisorDashboardService {
             partsSubtotal = partsSubtotal.add(itemTotal);
 
             MaterialItemDTO materialItem = new MaterialItemDTO();
-            materialItem.setItemId(item.getItemId());
+            materialItem.setItemId(item.getItemId()); // Fixed: Using Integer itemId
             materialItem.setName(item.getName());
             materialItem.setQuantity(usage.getQuantity());
             materialItem.setUnitPrice(item.getUnitPrice());
@@ -596,6 +597,7 @@ public class ServiceAdvisorDashboardService {
      * Helper method to generate a unique bill ID
      */
     private String generateBillId() {
+        // Changed from returning Integer to String
         return "BILL-" + System.currentTimeMillis() % 1000000;
     }
 
@@ -638,7 +640,7 @@ public class ServiceAdvisorDashboardService {
             String customerName,
             String vehicleName,
             String registration,
-            String billId,
+            String billId, // Changed from Integer to String
             BigDecimal totalAmount,
             String serviceType) {
 

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BillResponseDTO {
-    private Integer billId;
+    private String billId; // Changed from Integer to String
     private Integer requestId;
     private String vehicleName;
     private String registrationNumber;
