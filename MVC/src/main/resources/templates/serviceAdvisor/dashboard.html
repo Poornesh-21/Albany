@@ -2381,11 +2381,26 @@
     }
 
     // Fetch assigned vehicles from the server
+
+    // Function to fetch assigned vehicles from the server with token
     function fetchAssignedVehicles() {
-        fetch('/serviceAdvisor/api/assigned-vehicles')
+        // Get token from URL parameter or session storage
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        // Set up headers
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        fetch('/serviceAdvisor/api/assigned-vehicles', {
+            method: 'GET',
+            headers: headers
+        })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to fetch assigned vehicles');
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 return response.json();
             })
@@ -2395,6 +2410,9 @@
             .catch(error => {
                 console.error('Error fetching assigned vehicles:', error);
                 showNotification('Error loading assigned vehicles: ' + error.message, 'error');
+
+                // If there's an error, load some dummy data for development purposes
+                loadDummyData();
             });
     }
 
@@ -2706,18 +2724,33 @@
 
     // Fetch inventory items for dropdown
     function fetchInventoryItems() {
-        fetch('/serviceAdvisor/api/inventory-items')
+        // Get token from URL parameter or session storage
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        // Set up headers
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return fetch('/serviceAdvisor/api/inventory-items', {
+            method: 'GET',
+            headers: headers
+        })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to fetch inventory items');
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
                 populateInventoryDropdown(data);
+                return data;
             })
             .catch(error => {
                 console.error('Error fetching inventory items:', error);
+
                 // Fallback to dummy data if API not implemented yet
                 const dummyData = [
                     { itemId: 'oil-filter', name: 'Oil Filter', currentStock: 50, unitPrice: 15.99 },
@@ -2728,6 +2761,7 @@
                     { itemId: 'spark-plugs', name: 'Spark Plugs', currentStock: 80, unitPrice: 8.99 }
                 ];
                 populateInventoryDropdown(dummyData);
+                return dummyData;
             });
     }
 
@@ -3091,19 +3125,29 @@
         const notes = document.getElementById('statusNotes').value;
         const notifyCustomer = document.getElementById('notifyCustomer').checked;
 
+        // Get token from URL or session
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        // Set up headers
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         // Prepare data for API call
         const statusData = {
             status: status,
             notes: notes,
             notifyCustomer: notifyCustomer
         };
-
+fetch
         // Send to server
         fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/status`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify(statusData)
         })
             .then(response => {
@@ -3120,7 +3164,7 @@
                 showNotification(`Service status updated to ${status}!`);
 
                 // If notify customer is checked, show additional notification
-                if (notifyCustomer) {
+                if (notifyCustomer && data.notificationSent) {
                     setTimeout(() => {
                         showNotification('Status update notification sent to customer');
                     }, 3000);
@@ -3135,6 +3179,33 @@
             .catch(error => {
                 console.error('Error updating service status:', error);
                 showNotification('Error updating status: ' + error.message, 'error');
+            });
+    }
+
+    function fetchServiceDetails(requestId) {
+        // Get token from URL parameter or session storage
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        // Set up headers
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return fetch(`/serviceAdvisor/api/service-details/${requestId}`, {
+            method: 'GET',
+            headers: headers
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error(`Error fetching service details for ID ${requestId}:`, error);
+                throw error;
             });
     }
 
@@ -3208,7 +3279,19 @@
             return;
         }
 
-        // Save inventory items
+        // Get token from URL or session
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        // Set up headers
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Save inventory items if there are any
         if (window.inventoryItems.length > 0) {
             // Format inventory items for API
             const items = window.inventoryItems.map(item => {
@@ -3220,13 +3303,17 @@
                 };
             });
 
+            // Create service materials request
+            const materialsRequest = {
+                items: items,
+                replaceExisting: true
+            };
+
             // Send to server
             fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/inventory-items`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ items: items })
+                headers: headers,
+                body: JSON.stringify(materialsRequest)
             })
                 .then(response => {
                     if (!response.ok) {
@@ -3236,7 +3323,9 @@
                 })
                 .then(data => {
                     // Process response - update bill data
-                    loadCurrentBill(data);
+                    if (data.currentBill) {
+                        loadCurrentBill(data.currentBill);
+                    }
 
                     // Show success notification
                     showNotification('Inventory items saved successfully!');
@@ -3247,7 +3336,7 @@
                 });
         }
 
-        // Save labor charges
+        // Save labor charges if there are any
         if (window.laborCharges.length > 0) {
             // Format labor charges for API
             const charges = window.laborCharges.map(charge => {
@@ -3262,9 +3351,7 @@
             // Send to server
             fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/labor-charges`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(charges)
             })
                 .then(response => {
@@ -3275,7 +3362,7 @@
                 })
                 .then(data => {
                     // Process response - update bill data if not already updated by inventory items
-                    if (window.inventoryItems.length === 0) {
+                    if (window.inventoryItems.length === 0 && data) {
                         loadCurrentBill(data);
                     }
 
@@ -3293,7 +3380,7 @@
         // Save service notes
         const serviceNotes = document.getElementById('serviceNotes').value;
         if (serviceNotes) {
-            // This would be part of the bill generation or a separate API call
+            // This would be handled as part of the inventory items or labor charges request
         }
     }
 
