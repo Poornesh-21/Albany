@@ -2416,6 +2416,44 @@
             });
     }
 
+    function loadDummyData() {
+        // Example dummy data for testing when API is unavailable
+        const dummyVehicles = [
+            {
+                requestId: 1,
+                vehicleName: "Honda Civic (2020)",
+                registrationNumber: "ABC-1234",
+                customerName: "John Smith",
+                customerEmail: "john.smith@example.com",
+                serviceType: "General Service",
+                startDate: "2025-05-05",
+                status: "New"
+            },
+            {
+                requestId: 2,
+                vehicleName: "Toyota Camry (2019)",
+                registrationNumber: "XYZ-5678",
+                customerName: "Sarah Johnson",
+                customerEmail: "sarah.j@example.com",
+                serviceType: "Oil Change, Wheel Alignment",
+                startDate: "2025-05-03",
+                status: "In Progress"
+            },
+            {
+                requestId: 3,
+                vehicleName: "Ford Mustang (2018)",
+                registrationNumber: "DEF-9012",
+                customerName: "Michael Brown",
+                customerEmail: "michael.b@example.com",
+                serviceType: "Engine Check, Brake Service",
+                startDate: "2025-05-01",
+                status: "In Progress"
+            }
+        ];
+
+        updateVehiclesTable(dummyVehicles);
+    }
+
     // Update the vehicles table with data from server
     function updateVehiclesTable(vehicles) {
         const tableBody = document.getElementById('vehiclesTableBody');

@@ -57,7 +57,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/assigned-vehicles";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/assigned-vehicles";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -114,7 +115,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/service-details/" + requestId;
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/service-details/" + requestId;
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -170,7 +172,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/inventory-items";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/inventory-items";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -198,7 +201,7 @@ public class ServiceAdvisorApiController {
                     .body(Collections.emptyList());
         }
     }
-    
+
     /**
      * Update service status
      */
@@ -229,7 +232,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Map<String, String>> entity = new HttpEntity<>(statusUpdate, headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/service/" + requestId + "/status";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/service/" + requestId + "/status";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -288,7 +292,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(materialsRequest, headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/service/" + requestId + "/inventory-items";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/service/" + requestId + "/inventory-items";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -347,7 +352,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<List<Map<String, Object>>> entity = new HttpEntity<>(laborCharges, headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/service/" + requestId + "/labor-charges";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/service/" + requestId + "/labor-charges";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -406,7 +412,8 @@ public class ServiceAdvisorApiController {
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(billRequest, headers);
 
-            String url = apiBaseUrl + "/api/serviceAdvisor/dashboard/service/" + requestId + "/generate-bill";
+            // FIXED URL - removed duplicate "/api" prefix
+            String url = apiBaseUrl + "/serviceAdvisor/dashboard/service/" + requestId + "/generate-bill";
             log.debug("Making request to API: {}", url);
 
             ResponseEntity<String> response = restTemplate.exchange(
