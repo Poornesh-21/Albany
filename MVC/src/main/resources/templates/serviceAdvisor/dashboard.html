@@ -2120,7 +2120,6 @@
 </div>
 
 <script>
-    // Service Advisor Dashboard JavaScript
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize data structures
         window.inventoryPrices = {};
@@ -2128,12 +2127,20 @@
         window.laborCharges = [];
         window.currentRequestId = null;
 
+        // Set up token persistence
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (token) {
+            sessionStorage.setItem('jwt-token', token);
+        }
+
         // Load initial data from server
         fetchAssignedVehicles();
+
         // Set up refresh interval (every 5 minutes)
         setInterval(fetchAssignedVehicles, 300000);
 
-        // Initialize event listeners
+        // Initialize event listeners with the improved version
         initializeEventListeners();
 
         // Initialize status update events
@@ -2160,6 +2167,57 @@
                     filterMenu.classList.remove('show');
                 }
             });
+
+            // Add token persistence
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            if (token) {
+                sessionStorage.setItem('jwt-token', token);
+                console.log('Stored token in session storage');
+            }
+
+            // Add refresh button to force reload vehicle data
+            const headerActions = document.querySelector('.header-actions');
+            if (headerActions) {
+                const refreshButton = document.createElement('button');
+                refreshButton.className = 'btn btn-primary';
+                refreshButton.innerHTML = '<i class="fas fa-sync"></i> Refresh';
+                refreshButton.style.marginLeft = '10px';
+                refreshButton.addEventListener('click', function() {
+                    fetchAssignedVehicles();
+                    showNotification('Refreshing vehicle data...', 'info');
+                });
+                headerActions.appendChild(refreshButton);
+            }
+
+            // Add error recovery to modal
+            const vehicleDetailsModal = document.getElementById('vehicleDetailsModal');
+            if (vehicleDetailsModal) {
+                const modalContent = vehicleDetailsModal.querySelector('.modal-content');
+                if (modalContent) {
+                    const errorRecoveryBtn = document.createElement('button');
+                    errorRecoveryBtn.className = 'btn btn-secondary';
+                    errorRecoveryBtn.innerHTML = '<i class="fas fa-sync"></i> Reload Data';
+                    errorRecoveryBtn.style.display = 'none';
+                    errorRecoveryBtn.style.position = 'absolute';
+                    errorRecoveryBtn.style.top = '70px';
+                    errorRecoveryBtn.style.right = '20px';
+                    errorRecoveryBtn.addEventListener('click', function() {
+                        if (window.currentRequestId) {
+                            openVehicleDetails(window.currentRequestId);
+                            errorRecoveryBtn.style.display = 'none';
+                        }
+                    });
+                    modalContent.appendChild(errorRecoveryBtn);
+
+                    // Add error handler to show recovery button
+                    window.addEventListener('error', function() {
+                        if (vehicleDetailsModal.classList.contains('show')) {
+                            errorRecoveryBtn.style.display = 'block';
+                        }
+                    });
+                }
+            }
 
             // Filter options
             const filterOptions = document.querySelectorAll('.filter-option');
@@ -2379,6 +2437,24 @@
             }
         }
     }
+    function getAuthToken() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token') || sessionStorage.getItem('jwt-token');
+        return token;
+    }
+
+    function createAuthHeaders() {
+        const token = getAuthToken();
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        return headers;
+    }
 
     // Fetch assigned vehicles from the server
 
@@ -2386,14 +2462,19 @@
     function fetchAssignedVehicles() {
         // Get token from URL parameter or session storage
         const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        const token = urlParams.get('token') || sessionStorage.getItem('jwt-token');
 
-        // Set up headers
+        // Set up headers with token
         const headers = {};
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+            // Store token in session storage for future use
+            sessionStorage.setItem('jwt-token', token);
         }
 
+        console.log('Fetching assigned vehicles with token:', token ? token.substring(0, 10) + '...' : 'none');
+
+        // Use the correct endpoint that matches the backend
         fetch('/serviceAdvisor/api/assigned-vehicles', {
             method: 'GET',
             headers: headers
@@ -2405,14 +2486,13 @@
                 return response.json();
             })
             .then(data => {
+                console.log('Received vehicles data:', data);
                 updateVehiclesTable(data);
             })
             .catch(error => {
                 console.error('Error fetching assigned vehicles:', error);
                 showNotification('Error loading assigned vehicles: ' + error.message, 'error');
-
-                // If there's an error, load some dummy data for development purposes
-                loadDummyData();
+                loadDummyData(); // Fallback to dummy data
             });
     }
 
@@ -2532,7 +2612,9 @@
     }
 
     // Open vehicle details modal
+    // Enhanced function to open vehicle details with correct API request
     function openVehicleDetails(requestId) {
+        console.log('Opening details for service request ID:', requestId);
         window.currentRequestId = requestId;
 
         // Show the modal first
@@ -2550,23 +2632,42 @@
         // Update footer buttons
         updateModalFooterButtons();
 
-        // Fetch vehicle details from server
-        fetch(`/serviceAdvisor/api/service-details/${requestId}`)
+        // Get authentication token
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token') || sessionStorage.getItem('jwt-token');
+
+        // Set up headers
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Fetch vehicle details from server using proper endpoint
+        fetch(`/serviceAdvisor/api/service-details/${requestId}`, {
+            method: 'GET',
+            headers: headers
+        })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to fetch service details');
+                    throw new Error(`Failed to fetch service details: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
+                console.log('Received service details:', data);
+
                 // Load vehicle details
                 loadVehicleDetails(data);
 
-                // Load current bill data
-                loadCurrentBill(data.currentBill);
+                // Load current bill data if available
+                if (data.currentBill) {
+                    loadCurrentBill(data.currentBill);
+                }
 
-                // Load service history
-                loadServiceHistory(data.serviceHistory);
+                // Load service history if available
+                if (data.serviceHistory) {
+                    loadServiceHistory(data.serviceHistory);
+                }
 
                 // Load and populate inventory items dropdown
                 fetchInventoryItems();
@@ -2579,90 +2680,130 @@
 
     // Load vehicle details into the UI
     function loadVehicleDetails(data) {
-        // Vehicle Information
-        document.querySelector('.detail-card:nth-of-type(1) .detail-value:nth-of-type(1)').textContent =
-            `${data.vehicleBrand} ${data.vehicleModel}`;
-        document.querySelector('.detail-card:nth-of-type(1) .detail-value:nth-of-type(2)').textContent =
-            data.registrationNumber;
-        document.querySelector('.detail-card:nth-of-type(1) .detail-value:nth-of-type(3)').textContent =
-            data.vehicleYear;
-        document.querySelector('.detail-card:nth-of-type(1) .detail-value:nth-of-type(4)').textContent =
-            data.vehicleType;
-
-        // Customer Information
-        document.querySelector('.detail-card:nth-of-type(2) .detail-value:nth-of-type(1)').textContent =
-            data.customerName;
-        document.querySelector('.detail-card:nth-of-type(2) .detail-value:nth-of-type(2)').textContent =
-            data.customerEmail;
-        document.querySelector('.detail-card:nth-of-type(2) .detail-value:nth-of-type(3)').textContent =
-            data.customerPhone || 'N/A';
-
-        // Service Request Details
-        document.querySelector('.detail-card:nth-of-type(3) .detail-value:nth-of-type(1)').textContent =
-            data.serviceType;
-
-        const requestDate = new Date(data.requestDate);
-        document.querySelector('.detail-card:nth-of-type(3) .detail-value:nth-of-type(2)').textContent =
-            requestDate.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-            });
-
-        // Status badge
-        const statusBadgeContainer = document.querySelector('.detail-card:nth-of-type(3) .detail-value:nth-of-type(3)');
-        let statusClass = 'new';
-        if (data.status === 'Diagnosis' || data.status === 'Repair') {
-            statusClass = 'in-progress';
-        } else if (data.status === 'Completed') {
-            statusClass = 'completed';
+        // Safety check
+        if (!data) {
+            console.error('No data provided to loadVehicleDetails');
+            return;
         }
 
-        statusBadgeContainer.innerHTML = `
-        <span class="status-badge ${statusClass}">
-            <i class="fas fa-circle"></i> ${data.status}
-        </span>
-    `;
+        try {
+            // Vehicle Information
+            const vehicleCard = document.querySelector('.detail-card:nth-of-type(1)');
+            if (vehicleCard) {
+                const makeModel = `${data.vehicleBrand || ''} ${data.vehicleModel || ''}`.trim();
+                setDetailValue(vehicleCard, 1, makeModel || 'Not specified');
+                setDetailValue(vehicleCard, 2, data.registrationNumber || 'Not specified');
+                setDetailValue(vehicleCard, 3, data.vehicleYear || 'Not specified');
+                setDetailValue(vehicleCard, 4, data.vehicleType || 'Not specified');
+            }
 
-        // Description
-        document.querySelector('.detail-card:nth-of-type(3) .detail-value:nth-of-type(4)').textContent =
-            data.additionalDescription || 'No additional description provided.';
+            // Customer Information
+            const customerCard = document.querySelector('.detail-card:nth-of-type(2)');
+            if (customerCard) {
+                setDetailValue(customerCard, 1, data.customerName || 'Not specified');
+                setDetailValue(customerCard, 2, data.customerEmail || 'Not specified');
+                setDetailValue(customerCard, 3, data.customerPhone || 'Not specified');
+            }
 
-        // Update vehicle summary in other tabs
-        const vehicleSummaryElements = document.querySelectorAll('.vehicle-summary .vehicle-info-summary h4');
-        vehicleSummaryElements.forEach(element => {
-            element.textContent = `${data.vehicleBrand} ${data.vehicleModel} (${data.registrationNumber})`;
-        });
+            // Service Request Details
+            const serviceCard = document.querySelector('.detail-card:nth-of-type(3)');
+            if (serviceCard) {
+                setDetailValue(serviceCard, 1, data.serviceType || 'General Service');
 
-        const customerElements = document.querySelectorAll('.vehicle-summary .vehicle-info-summary p');
-        customerElements.forEach(element => {
-            element.textContent = `Customer: ${data.customerName}`;
-        });
+                // Format date
+                let formattedDate = 'Not specified';
+                if (data.requestDate) {
+                    const requestDate = new Date(data.requestDate);
+                    formattedDate = requestDate.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                }
+                setDetailValue(serviceCard, 2, formattedDate);
 
-        // Update status badges in other tabs
-        const statusDisplayElements = document.querySelectorAll('.vehicle-summary .status-display');
-        statusDisplayElements.forEach(element => {
-            element.innerHTML = `
-            <span class="status-badge ${statusClass}" id="currentStatusBadge">
-                <i class="fas fa-circle"></i> ${data.status}
-            </span>
-        `;
-        });
+                // Status badge
+                const statusCell = serviceCard.querySelector('.detail-value:nth-of-type(3)');
+                if (statusCell) {
+                    const status = data.status || 'New';
+                    let statusClass = getStatusClass(status);
 
-        // Update status dropdown
-        const statusSelect = document.getElementById('statusSelect');
-        if (statusSelect) {
-            // Set current status as value
-            for (let i = 0; i < statusSelect.options.length; i++) {
-                if (statusSelect.options[i].value.toLowerCase() === data.status.toLowerCase()) {
-                    statusSelect.selectedIndex = i;
-                    break;
+                    statusCell.innerHTML = `
+                    <span class="status-badge ${statusClass}">
+                        <i class="fas fa-circle"></i> ${status}
+                    </span>
+                `;
+                }
+
+                // Description
+                setDetailValue(serviceCard, 4, data.additionalDescription || 'No additional description provided.');
+            }
+
+            // Update vehicle summary in other tabs
+            const vehicleSummaryElements = document.querySelectorAll('.vehicle-summary .vehicle-info-summary h4');
+            const vehicleInfo = `${data.vehicleBrand || ''} ${data.vehicleModel || ''} (${data.registrationNumber || 'Unknown'})`.trim();
+            vehicleSummaryElements.forEach(element => {
+                element.textContent = vehicleInfo;
+            });
+
+            // Update customer info in summary
+            const customerElements = document.querySelectorAll('.vehicle-summary .vehicle-info-summary p');
+            customerElements.forEach(element => {
+                element.textContent = `Customer: ${data.customerName || 'Unknown'}`;
+            });
+
+            // Update status badges in other tabs
+            const statusDisplayElements = document.querySelectorAll('.vehicle-summary .status-display');
+            const status = data.status || 'New';
+            let statusClass = getStatusClass(status);
+
+            statusDisplayElements.forEach(element => {
+                element.innerHTML = `
+                <span class="status-badge ${statusClass}" id="currentStatusBadge">
+                    <i class="fas fa-circle"></i> ${status}
+                </span>
+            `;
+            });
+
+            // Update status dropdown
+            const statusSelect = document.getElementById('statusSelect');
+            if (statusSelect) {
+                // Set current status as value
+                for (let i = 0; i < statusSelect.options.length; i++) {
+                    if (statusSelect.options[i].value.toLowerCase() === status.toLowerCase()) {
+                        statusSelect.selectedIndex = i;
+                        break;
+                    }
                 }
             }
+        } catch (error) {
+            console.error('Error loading vehicle details:', error);
+            showNotification('Error displaying vehicle details', 'error');
+        }
+    }
+
+    // Helper function to set detail value safely
+    function setDetailValue(cardElement, index, value) {
+        const valueElement = cardElement.querySelector(`.detail-value:nth-of-type(${index})`);
+        if (valueElement) {
+            valueElement.textContent = value;
+        }
+    }
+
+    // Helper function to get status class based on status string
+    function getStatusClass(status) {
+        const statusLower = status.toLowerCase();
+        if (statusLower === 'completed') {
+            return 'completed';
+        } else if (statusLower === 'diagnosis' || statusLower === 'repair') {
+            return 'in-progress';
+        } else {
+            return 'new';
         }
     }
 
     // Load service history
+    // Updated function to handle service history with better error handling
     function loadServiceHistory(history) {
         const historyContainer = document.querySelector('.status-history');
         if (!historyContainer) return;
@@ -2674,89 +2815,123 @@
             return;
         }
 
-        // Sort history by timestamp (newest first)
-        history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-        history.forEach(item => {
-            const timestamp = new Date(item.timestamp);
-            const formattedDate = timestamp.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
+        try {
+            // Sort history by timestamp (newest first)
+            history.sort((a, b) => {
+                // Handle potential invalid dates gracefully
+                let dateA = new Date(a.timestamp || 0);
+                let dateB = new Date(b.timestamp || 0);
+                return dateB - dateA;
             });
 
-            // Status badge class
-            let statusClass = 'new';
-            if (item.status === 'Diagnosis' || item.status === 'Repair') {
-                statusClass = 'in-progress';
-            } else if (item.status === 'Completed') {
-                statusClass = 'completed';
-            }
+            history.forEach(item => {
+                // Default values if data is missing
+                const status = item.status || 'Unknown';
+                const updatedBy = item.updatedBy || 'System';
+                const notes = item.workDescription || 'No notes provided';
 
-            const historyItem = document.createElement('div');
-            historyItem.className = 'status-history-item';
-            historyItem.innerHTML = `
-            <div class="status-history-badge ${statusClass}">${item.status}</div>
-            <div class="status-history-details">
-                <div class="status-history-date">${formattedDate}</div>
-                <div class="status-history-user">Updated by: ${item.updatedBy}</div>
-                <div class="status-history-notes">${item.workDescription || 'No notes provided'}</div>
-            </div>
-        `;
+                let formattedDate = 'Unknown date';
+                try {
+                    if (item.timestamp) {
+                        const timestamp = new Date(item.timestamp);
+                        formattedDate = timestamp.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Invalid date format in history:', item.timestamp);
+                }
 
-            historyContainer.appendChild(historyItem);
-        });
+                // Status badge class
+                let statusClass = getStatusClass(status);
+
+                const historyItem = document.createElement('div');
+                historyItem.className = 'status-history-item';
+                historyItem.innerHTML = `
+                <div class="status-history-badge ${statusClass}">${status}</div>
+                <div class="status-history-details">
+                    <div class="status-history-date">${formattedDate}</div>
+                    <div class="status-history-user">Updated by: ${updatedBy}</div>
+                    <div class="status-history-notes">${notes}</div>
+                </div>
+            `;
+
+                historyContainer.appendChild(historyItem);
+            });
+        } catch (error) {
+            console.error('Error loading service history:', error);
+            historyContainer.innerHTML = '<div class="empty-state">Error loading history data</div>';
+        }
     }
 
     // Load current bill data
     function loadCurrentBill(billData) {
-        if (!billData) return;
-
-        // Clear existing data
-        window.inventoryItems = [];
-        window.laborCharges = [];
-
-        // Load materials
-        if (billData.materials && billData.materials.length > 0) {
-            billData.materials.forEach(item => {
-                window.inventoryItems.push({
-                    key: item.itemId,
-                    name: item.name,
-                    price: item.unitPrice,
-                    quantity: item.quantity
-                });
-            });
+        if (!billData) {
+            console.warn('No bill data provided');
+            return;
         }
 
-        // Load labor charges
-        if (billData.laborCharges && billData.laborCharges.length > 0) {
-            billData.laborCharges.forEach(charge => {
-                window.laborCharges.push({
-                    description: charge.description,
-                    hours: charge.hours,
-                    rate: charge.ratePerHour
+        try {
+            // Clear existing data
+            window.inventoryItems = [];
+            window.laborCharges = [];
+
+            // Load materials with proper error handling
+            if (billData.materials && Array.isArray(billData.materials)) {
+                billData.materials.forEach(item => {
+                    if (item && item.itemId) {
+                        window.inventoryItems.push({
+                            key: item.itemId,
+                            name: item.name || `Item ${item.itemId}`,
+                            price: parseFloat(item.unitPrice) || 0,
+                            quantity: parseInt(item.quantity) || 1
+                        });
+                    }
                 });
-            });
-        }
+            }
 
-        // Render items and charges
-        renderInventoryItems();
-        renderLaborCharges();
+            // Load labor charges with proper error handling
+            if (billData.laborCharges && Array.isArray(billData.laborCharges)) {
+                billData.laborCharges.forEach(charge => {
+                    if (charge) {
+                        window.laborCharges.push({
+                            description: charge.description || 'Labor charge',
+                            hours: parseFloat(charge.hours) || 0,
+                            rate: parseFloat(charge.ratePerHour) || 0
+                        });
+                    }
+                });
+            }
 
-        // Update bill summary
-        document.getElementById('partsSubtotal').textContent = `${billData.partsSubtotal ? billData.partsSubtotal.toFixed(2) : '0.00'}`;
-        document.getElementById('laborSubtotal').textContent = `${billData.laborSubtotal ? billData.laborSubtotal.toFixed(2) : '0.00'}`;
-        document.getElementById('subtotalAmount').textContent = `${billData.subtotal ? billData.subtotal.toFixed(2) : '0.00'}`;
-        document.getElementById('taxAmount').textContent = `${billData.tax ? billData.tax.toFixed(2) : '0.00'}`;
-        document.getElementById('totalAmount').textContent = `${billData.total ? billData.total.toFixed(2) : '0.00'}`;
+            // Render items and charges
+            renderInventoryItems();
+            renderLaborCharges();
 
-        // Update service notes
-        const serviceNotesTextarea = document.getElementById('serviceNotes');
-        if (serviceNotesTextarea && billData.notes) {
-            serviceNotesTextarea.value = billData.notes;
+            // Update bill summary with safe parsing
+            const formatCurrency = (value) => {
+                const num = parseFloat(value) || 0;
+                return `$${num.toFixed(2)}`;
+            };
+
+            document.getElementById('partsSubtotal').textContent = formatCurrency(billData.partsSubtotal);
+            document.getElementById('laborSubtotal').textContent = formatCurrency(billData.laborSubtotal);
+            document.getElementById('subtotalAmount').textContent = formatCurrency(billData.subtotal);
+            document.getElementById('taxAmount').textContent = formatCurrency(billData.tax);
+            document.getElementById('totalAmount').textContent = formatCurrency(billData.total);
+
+            // Update service notes
+            const serviceNotesTextarea = document.getElementById('serviceNotes');
+            if (serviceNotesTextarea && billData.notes) {
+                serviceNotesTextarea.value = billData.notes;
+            }
+        } catch (error) {
+            console.error('Error loading bill data:', error);
+            showNotification('Error loading bill information', 'error');
         }
     }
 
@@ -3158,14 +3333,24 @@
     }
 
     // Update service status
+    / Improved status update function
     function updateServiceStatus() {
-        const status = document.getElementById('statusSelect').value;
-        const notes = document.getElementById('statusNotes').value;
-        const notifyCustomer = document.getElementById('notifyCustomer').checked;
+        const statusSelect = document.getElementById('statusSelect');
+        const statusNotes = document.getElementById('statusNotes');
+        const notifyCustomer = document.getElementById('notifyCustomer');
+
+        if (!statusSelect || !statusNotes || !notifyCustomer) {
+            console.error('Status update form elements not found');
+            return;
+        }
+
+        const status = statusSelect.value;
+        const notes = statusNotes.value;
+        const shouldNotify = notifyCustomer.checked;
 
         // Get token from URL or session
         const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        const token = urlParams.get('token') || sessionStorage.getItem('jwt-token');
 
         // Set up headers
         const headers = {
@@ -3179,10 +3364,12 @@
         const statusData = {
             status: status,
             notes: notes,
-            notifyCustomer: notifyCustomer
+            notifyCustomer: shouldNotify
         };
-fetch
-        // Send to server
+
+        console.log(`Updating service ${window.currentRequestId} status to ${status}`);
+
+        // Send to server using the correct endpoint
         fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/status`, {
             method: 'PUT',
             headers: headers,
@@ -3190,11 +3377,13 @@ fetch
         })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to update status');
+                    throw new Error(`Failed to update status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
+                console.log('Status update response:', data);
+
                 // Add to status history
                 addStatusHistoryItem(status, notes);
 
@@ -3202,22 +3391,58 @@ fetch
                 showNotification(`Service status updated to ${status}!`);
 
                 // If notify customer is checked, show additional notification
-                if (notifyCustomer && data.notificationSent) {
+                if (shouldNotify && data.notificationSent) {
                     setTimeout(() => {
                         showNotification('Status update notification sent to customer');
                     }, 3000);
                 }
 
-                // Update the status in the main table
+                // Update the status in the main table and in all status badges
                 updateStatusInTable(window.currentRequestId, status);
+                updateAllStatusBadges(status);
 
                 // Clear the notes field
                 document.getElementById('statusNotes').value = '';
+
+                // Refresh service details to ensure everything is in sync
+                setTimeout(() => {
+                    openVehicleDetails(window.currentRequestId);
+                }, 1000);
             })
             .catch(error => {
                 console.error('Error updating service status:', error);
                 showNotification('Error updating status: ' + error.message, 'error');
             });
+    }
+
+    // Update all status badges in the modal
+    function updateAllStatusBadges(status) {
+        let statusClass = getStatusClass(status);
+
+        // Update current status badge
+        const currentStatusBadge = document.getElementById('currentStatusBadge');
+        if (currentStatusBadge) {
+            // Remove all status classes
+            currentStatusBadge.classList.remove('new', 'in-progress', 'completed');
+            currentStatusBadge.classList.add(statusClass);
+            currentStatusBadge.innerHTML = `<i class="fas fa-circle"></i> ${status}`;
+        }
+
+        // Update all status displays
+        const statusDisplays = document.querySelectorAll('.status-display .status-badge');
+        statusDisplays.forEach(badge => {
+            badge.classList.remove('new', 'in-progress', 'completed');
+            badge.classList.add(statusClass);
+            badge.innerHTML = `<i class="fas fa-circle"></i> ${status}`;
+        });
+
+        // Update status in details tab
+        const detailStatus = document.querySelector('.detail-card:nth-of-type(3) .detail-value:nth-of-type(3) .status-badge');
+        if (detailStatus) {
+            detailStatus.classList.remove('new', 'in-progress', 'completed');
+            detailStatus.classList.add(statusClass);
+            detailStatus.innerHTML = `<i class="fas fa-circle"></i> ${status}`;
+        }
     }
 
     function fetchServiceDetails(requestId) {
@@ -3317,9 +3542,12 @@ fetch
             return;
         }
 
+        // Show a saving indicator
+        showNotification('Saving service items...', 'info');
+
         // Get token from URL or session
         const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        const token = urlParams.get('token') || sessionStorage.getItem('jwt-token');
 
         // Set up headers
         const headers = {
@@ -3328,6 +3556,9 @@ fetch
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
+
+        // Track promises for inventory items and labor charges
+        const promises = [];
 
         // Save inventory items if there are any
         if (window.inventoryItems.length > 0) {
@@ -3347,31 +3578,20 @@ fetch
                 replaceExisting: true
             };
 
-            // Send to server
-            fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/inventory-items`, {
+            // Add inventory items promise
+            const inventoryPromise = fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/inventory-items`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(materialsRequest)
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to save inventory items');
+                        throw new Error(`Failed to save inventory items: ${response.status}`);
                     }
                     return response.json();
-                })
-                .then(data => {
-                    // Process response - update bill data
-                    if (data.currentBill) {
-                        loadCurrentBill(data.currentBill);
-                    }
-
-                    // Show success notification
-                    showNotification('Inventory items saved successfully!');
-                })
-                .catch(error => {
-                    console.error('Error saving inventory items:', error);
-                    showNotification('Error saving inventory items: ' + error.message, 'error');
                 });
+
+            promises.push(inventoryPromise);
         }
 
         // Save labor charges if there are any
@@ -3386,40 +3606,45 @@ fetch
                 };
             });
 
-            // Send to server
-            fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/labor-charges`, {
+            // Add labor charges promise
+            const laborPromise = fetch(`/serviceAdvisor/api/service/${window.currentRequestId}/labor-charges`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(charges)
             })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to save labor charges');
+                        throw new Error(`Failed to save labor charges: ${response.status}`);
                     }
                     return response.json();
-                })
-                .then(data => {
-                    // Process response - update bill data if not already updated by inventory items
-                    if (window.inventoryItems.length === 0 && data) {
-                        loadCurrentBill(data);
-                    }
-
-                    // Show success notification if not already shown
-                    if (window.inventoryItems.length === 0) {
-                        showNotification('Labor charges saved successfully!');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error saving labor charges:', error);
-                    showNotification('Error saving labor charges: ' + error.message, 'error');
                 });
+
+            promises.push(laborPromise);
         }
 
-        // Save service notes
-        const serviceNotes = document.getElementById('serviceNotes').value;
-        if (serviceNotes) {
-            // This would be handled as part of the inventory items or labor charges request
-        }
+        // Wait for all promises to resolve
+        Promise.all(promises)
+            .then(results => {
+                console.log('Save service items results:', results);
+
+                // Use the latest bill data (from the last result)
+                const latestData = results[results.length - 1];
+                if (latestData && latestData.currentBill) {
+                    loadCurrentBill(latestData.currentBill);
+                }
+
+                // Show success notification
+                showNotification('Service items saved successfully!');
+
+                // Refresh service details to ensure everything is in sync
+                setTimeout(() => {
+                    openVehicleDetails(window.currentRequestId);
+                }, 1000);
+            })
+            .catch(error => {
+                console.error('Error saving service items:', error);
+                showNotification('Error: ' + error.message, 'error');
+            });
     }
 
     // Generate bill
